@@ -6,6 +6,8 @@ import { StatusBar } from '../ui/StatusBar';
 import type { EffectCanvasHandle } from '../ui/EffectCanvas';
 import { GestureHintBar } from '../ui/GestureHintBar';
 import { HitFeedback } from '../ui/HitFeedback';
+import { Onboarding } from '../ui/Onboarding';
+import { hasOnboarded } from '../ui/onboardingState';
 import { ScreenshotPreview } from '../ui/ScreenshotPreview';
 import { CaptureBar } from '../ui/CaptureBar';
 import { WorksGallery } from '../ui/WorksGallery';
@@ -48,6 +50,7 @@ export function AuraSealApp() {
 
   const [muted, setMuted] = useState(audioEngine.muted);
   const [bgmOn, setBgmOn] = useState(audioEngine.bgmOn);
+  const [onboarded, setOnboarded] = useState(hasOnboarded);
 
   const getEffectCanvas = useCallback(() => effectCanvasRef.current?.getCanvas() ?? null, []);
   const getAudioStream = useCallback(() => audioEngine.audioStream, []);
@@ -130,6 +133,8 @@ export function AuraSealApp() {
     onGesture,
   });
 
+  const onboardingActive = camera.status === 'ready' && mode === 'auto' && !onboarded;
+
   return (
     <main className="app-shell">
       <HeaderBar
@@ -211,13 +216,15 @@ export function AuraSealApp() {
           </div>
         ) : null}
 
-        <GestureHintBar
-          cameraStatus={camera.status}
-          mode={mode}
-          snapshot={vision.snapshot}
-          latestGesture={latestGesture}
-          degraded={vision.degraded}
-        />
+        {onboardingActive ? null : (
+          <GestureHintBar
+            cameraStatus={camera.status}
+            mode={mode}
+            snapshot={vision.snapshot}
+            latestGesture={latestGesture}
+            degraded={vision.degraded}
+          />
+        )}
 
         <CaptureBar
           visible={camera.status === 'ready'}
@@ -244,6 +251,14 @@ export function AuraSealApp() {
         reloadKey={worksReloadKey}
         onClose={() => setWorksOpen(false)}
       />
+
+      {onboardingActive ? (
+        <Onboarding
+          snapshot={vision.snapshot}
+          latestGesture={latestGesture}
+          onClose={() => setOnboarded(true)}
+        />
+      ) : null}
 
       <StatusBar
         mode={mode}

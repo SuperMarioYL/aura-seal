@@ -1008,6 +1008,99 @@ button {
   padding: 0 6px;
 }
 
+/* Onboarding (v0.8) */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  display: grid;
+  place-items: end center;
+  padding: 0 var(--space-4) calc(150px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+
+.onboarding-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  width: min(440px, calc(100vw - var(--space-5)));
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  text-align: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+}
+
+.onboarding-steps {
+  display: flex;
+  gap: 6px;
+}
+
+.onboarding-dot {
+  width: 22px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--fill-strong);
+}
+
+.onboarding-dot.done {
+  background: var(--accent);
+}
+
+.onboarding-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-top: var(--space-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.onboarding-icon.waiting {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.onboarding-icon.ok {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.onboarding-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+}
+
+.onboarding-card p {
+  margin: 0;
+  max-width: 360px;
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.onboarding-state {
+  margin-top: var(--space-1);
+  padding: 5px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.onboarding-state.ok {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 /* Screenshot preview (v0.3) */
 .screenshot-overlay {
   position: fixed;
