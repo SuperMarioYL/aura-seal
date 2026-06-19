@@ -278,10 +278,15 @@ button {
 }
 
 .floating-toggle.active,
-.floating-toggle:hover {
+.floating-toggle:hover:not(:disabled) {
   color: var(--on-accent);
   border-color: transparent;
   background: var(--accent);
+}
+
+.floating-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .mode-switch {
@@ -732,6 +737,66 @@ button {
 .primary-action:disabled {
   cursor: progress;
   opacity: 0.72;
+}
+
+/* Screenshot preview (v0.3) */
+.screenshot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgba(2, 4, 7, 0.74);
+  backdrop-filter: blur(8px);
+}
+
+.screenshot-card {
+  position: relative;
+  display: grid;
+  gap: var(--space-4);
+  width: min(720px, calc(100vw - var(--space-6)));
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-3);
+}
+
+.screenshot-card img {
+  display: block;
+  width: 100%;
+  max-height: 64vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--surface-video);
+}
+
+.screenshot-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  background: var(--fill);
+  cursor: pointer;
+}
+
+.screenshot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.screenshot-actions .primary-action,
+.screenshot-actions .ghost-action {
+  flex: 1;
+  min-width: 120px;
 }
 
 /* Error boundary fallback */

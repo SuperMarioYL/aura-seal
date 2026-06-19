@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import {
   createRuntimeEffect,
@@ -18,8 +18,18 @@ interface EffectCanvasProps {
   } | null;
 }
 
-export function EffectCanvas({ trigger }: EffectCanvasProps) {
+export interface EffectCanvasHandle {
+  /** The live WebGL canvas, for compositing screenshots/recordings. */
+  getCanvas: () => HTMLCanvasElement | null;
+}
+
+export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(function EffectCanvas(
+  { trigger },
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useImperativeHandle(ref, () => ({ getCanvas: () => canvasRef.current }), []);
   const effectsRef = useRef<EffectRuntime[]>([]);
   const actorsRef = useRef<WebGLEffectActor[]>([]);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -72,6 +82,8 @@ export function EffectCanvas({ trigger }: EffectCanvasProps) {
         antialias: false,
         powerPreference: 'high-performance',
         premultipliedAlpha: false,
+        // Keep the drawing buffer so screenshots/recordings can read the effects layer.
+        preserveDrawingBuffer: true,
       });
     } catch (err) {
       console.warn('[AuraSeal] WebGL unavailable — effects disabled', err);
@@ -163,4 +175,4 @@ export function EffectCanvas({ trigger }: EffectCanvasProps) {
   }, []);
 
   return <canvas ref={canvasRef} className="effect-canvas" aria-hidden="true" />;
-}
+});

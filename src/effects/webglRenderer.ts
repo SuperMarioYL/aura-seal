@@ -45,6 +45,24 @@ export function createWebGLEffect(
   const group = new THREE.Group();
   group.position.set(anchor.x, anchor.y, 0);
 
+  const actor = buildActor(runtime, group, anchor, secondary, direction, width, height);
+  // v0.3: an alpha-correct soft halo + intensity-driven brightness give the "辉光"
+  // over-exposure look directly in-scene, without a post-processing pass that would
+  // risk blacking out the transparent overlay above the camera feed.
+  addGlow(actor, runtime, width, height);
+  applyIntensity(actor, runtime);
+  return actor;
+}
+
+function buildActor(
+  runtime: EffectRuntime,
+  group: THREE.Group,
+  anchor: Vec,
+  secondary: Vec | undefined,
+  direction: Vec,
+  width: number,
+  height: number,
+): WebGLEffectActor {
   switch (runtime.preset.id) {
     case 'seal':
       return createSealActor(runtime, group, width);
@@ -76,6 +94,17 @@ export function createWebGLEffect(
   }
 }
 
+function addGlow(actor: WebGLEffectActor, runtime: EffectRuntime, width: number, height: number) {
+  const base = Math.min(width, height);
+  const radius = base * (0.12 + runtime.preset.intensity * 0.08);
+  actor.group.add(createGlowDisc(radius, runtime.preset.palette.glow, 0.5));
+}
+
+function applyIntensity(actor: WebGLEffectActor, runtime: EffectRuntime) {
+  // Weak moves stay restrained, strong moves push toward over-exposure. Read by setOpacity.
+  actor.group.userData.brightness = 0.55 + runtime.preset.intensity * 0.5;
+}
+
 export function updateWebGLEffect(actor: WebGLEffectActor, now: number): boolean {
   const elapsed = now - actor.runtime.startedAt;
   const progress = clamp01(elapsed / actor.runtime.durationMs);
@@ -93,12 +122,12 @@ function createSealActor(
   group: THREE.Group,
   width: number,
 ): WebGLEffectActor {
-  const color = runtime.preset.color;
-  const accent = runtime.preset.accent;
+  const color = runtime.preset.palette.mid;
+  const accent = runtime.preset.palette.spark;
   const radius = width * 0.09;
 
   group.add(createRing(radius, color, 0.82, 2.4));
-  group.add(createRing(radius * 0.68, '#ffffff', 0.72, 1.5));
+  group.add(createRing(radius * 0.68, runtime.preset.palette.core, 0.72, 1.5));
   for (let i = 0; i < 12; i += 1) {
     const angle = (TAU / 12) * i;
     const spoke = createLineMesh(
@@ -148,20 +177,20 @@ function createShockwaveActor(
         sampleCubic(points, 34),
         Math.max(12, width * (0.014 - i * 0.0014)),
         Math.max(2, width * 0.002),
-        i < 2 ? '#ffffff' : runtime.preset.color,
+        i < 2 ? runtime.preset.palette.core : runtime.preset.palette.mid,
         0.72 - i * 0.08,
       ),
     );
   }
 
-  group.add(createRing(spread * 0.96, '#ffffff', 0.48, 1.4));
-  group.add(createRing(spread * 1.34, runtime.preset.color, 0.34, 1.1));
+  group.add(createRing(spread * 0.96, runtime.preset.palette.core, 0.48, 1.4));
+  group.add(createRing(spread * 1.34, runtime.preset.palette.mid, 0.34, 1.1));
   group.add(
     createForwardParticles(
       58,
       length * 1.05,
       spread * 1.65,
-      runtime.preset.accent,
+      runtime.preset.palette.spark,
       0.62,
       runtime.seed,
       4,
@@ -191,13 +220,15 @@ function createOrbActor(
 
   const core = new THREE.Mesh(
     new THREE.CircleGeometry(radius, 48),
-    createMaterial('#ffffff', 0.86),
+    createMaterial(runtime.preset.palette.core, 0.86),
   );
   group.add(core);
-  group.add(createDisc(radius * 2.6, runtime.preset.color, 0.2));
-  group.add(createRing(radius * 1.7, runtime.preset.accent, 0.72, 1.5));
-  group.add(createRing(radius * 2.3, '#ffffff', 0.46, 1));
-  group.add(createPointsCloud(64, radius * 3.4, runtime.preset.color, 0.66, runtime.seed, 4.5));
+  group.add(createDisc(radius * 2.6, runtime.preset.palette.mid, 0.2));
+  group.add(createRing(radius * 1.7, runtime.preset.palette.spark, 0.72, 1.5));
+  group.add(createRing(radius * 2.3, runtime.preset.palette.core, 0.46, 1));
+  group.add(
+    createPointsCloud(64, radius * 3.4, runtime.preset.palette.mid, 0.66, runtime.seed, 4.5),
+  );
 
   const actor = baseActor(runtime, group);
   actor.update = (progress, elapsedMs) => {
@@ -231,7 +262,7 @@ function createRushActor(
         },
       ],
       1.4 + seeded(runtime.seed + i * 5) * 5,
-      i % 5 === 0 ? '#ffffff' : runtime.preset.accent,
+      i % 5 === 0 ? runtime.preset.palette.core : runtime.preset.palette.spark,
       0.5,
     );
     group.add(line);
@@ -250,11 +281,11 @@ function createColumnActor(
   height: number,
   width: number,
 ): WebGLEffectActor {
-  const beam = createPlane(width * 0.16, height * 1.25, runtime.preset.color, 0.28);
+  const beam = createPlane(width * 0.16, height * 1.25, runtime.preset.palette.mid, 0.28);
   beam.position.y = height * 0.08;
   group.add(beam);
-  group.add(createPlane(width * 0.055, height * 1.25, '#ffffff', 0.36));
-  group.add(createRing(width * 0.12, runtime.preset.accent, 0.52, 1.4));
+  group.add(createPlane(width * 0.055, height * 1.25, runtime.preset.palette.core, 0.36));
+  group.add(createRing(width * 0.12, runtime.preset.palette.spark, 0.52, 1.4));
 
   const actor = baseActor(runtime, group);
   actor.update = (progress, elapsedMs) => {
@@ -283,12 +314,12 @@ function createBurstActor(
         },
       ],
       3 + seeded(runtime.seed + i * 2) * 7,
-      i % 4 === 0 ? runtime.preset.accent : runtime.preset.color,
+      i % 4 === 0 ? runtime.preset.palette.spark : runtime.preset.palette.mid,
       0.56,
     );
     group.add(line);
   }
-  group.add(createRing(radius, runtime.preset.color, 0.52, 1.6));
+  group.add(createRing(radius, runtime.preset.palette.mid, 0.52, 1.6));
 
   const actor = baseActor(runtime, group);
   actor.update = (progress) => {
@@ -304,9 +335,9 @@ function createBarrierActor(
   width: number,
 ): WebGLEffectActor {
   const radius = width * 0.15;
-  group.add(createDisc(radius * 0.98, runtime.preset.color, 0.08));
-  group.add(createRing(radius, runtime.preset.color, 0.62, 1.7));
-  group.add(createRing(radius * 0.74, '#ffffff', 0.42, 1));
+  group.add(createDisc(radius * 0.98, runtime.preset.palette.mid, 0.08));
+  group.add(createRing(radius, runtime.preset.palette.mid, 0.62, 1.7));
+  group.add(createRing(radius * 0.74, runtime.preset.palette.core, 0.42, 1));
   for (let i = 0; i < 8; i += 1) {
     const angle = (TAU / 8) * i;
     group.add(
@@ -316,7 +347,7 @@ function createBarrierActor(
           { x: Math.cos(angle) * radius * 0.92, y: Math.sin(angle) * radius * 1.08 },
         ],
         2.2,
-        runtime.preset.accent,
+        runtime.preset.palette.spark,
         0.5,
       ),
     );
@@ -340,7 +371,7 @@ function createSkyfallActor(
     const beam = createPlane(
       width * (0.012 + seeded(runtime.seed + i) * 0.014),
       height * (0.24 + seeded(runtime.seed + i * 3) * 0.26),
-      i % 3 === 0 ? '#ffffff' : runtime.preset.color,
+      i % 3 === 0 ? runtime.preset.palette.core : runtime.preset.palette.mid,
       0.5,
     );
     beam.position.set(
@@ -367,8 +398,10 @@ function createGuardActor(
 ): WebGLEffectActor {
   group.position.y += height * 0.07;
   const radius = Math.min(width, height) * 0.22;
-  group.add(createRing(radius, runtime.preset.color, 0.44, 1.2));
-  group.add(createPointsCloud(72, radius * 1.25, runtime.preset.accent, 0.54, runtime.seed, 3.5));
+  group.add(createRing(radius, runtime.preset.palette.mid, 0.44, 1.2));
+  group.add(
+    createPointsCloud(72, radius * 1.25, runtime.preset.palette.spark, 0.54, runtime.seed, 3.5),
+  );
   const actor = baseActor(runtime, group);
   actor.update = (progress, elapsedMs) => {
     group.rotation.z = Math.sin(elapsedMs * 0.004) * 0.035;
@@ -387,11 +420,19 @@ function createBeamActor(
 ): WebGLEffectActor {
   group.rotation.z = Math.atan2(direction.y, direction.x);
   const length = Math.max(width, height) * 1.08;
-  const beam = createWedge(length, height * 0.06, runtime.preset.color, 0.6);
+  const beam = createWedge(length, height * 0.06, runtime.preset.palette.mid, 0.6);
   group.add(beam);
-  group.add(createWedge(length, height * 0.023, '#ffffff', 0.78));
+  group.add(createWedge(length, height * 0.023, runtime.preset.palette.core, 0.78));
   group.add(
-    createForwardParticles(24, length * 0.58, height * 0.18, '#ffffff', 0.42, runtime.seed, 2.5),
+    createForwardParticles(
+      24,
+      length * 0.58,
+      height * 0.18,
+      runtime.preset.palette.core,
+      0.42,
+      runtime.seed,
+      2.5,
+    ),
   );
 
   const actor = baseActor(runtime, group);
@@ -411,17 +452,21 @@ function createSlashActor(
   group.rotation.z = Math.atan2(direction.y, direction.x);
   const radius = width * 0.26;
   const points = sampleArc(radius, -0.98, 1.05, 48);
-  group.add(createRibbonMesh(points, width * 0.026, width * 0.004, '#ffffff', 0.8));
+  group.add(
+    createRibbonMesh(points, width * 0.026, width * 0.004, runtime.preset.palette.core, 0.8),
+  );
   group.add(
     createRibbonMesh(
       sampleArc(radius * 1.08, -0.86, 0.96, 42),
       width * 0.014,
       width * 0.002,
-      runtime.preset.accent,
+      runtime.preset.palette.spark,
       0.62,
     ),
   );
-  group.add(createPointsOnArc(24, radius * 1.02, runtime.preset.accent, 0.62, runtime.seed, 3.5));
+  group.add(
+    createPointsOnArc(24, radius * 1.02, runtime.preset.palette.spark, 0.62, runtime.seed, 3.5),
+  );
 
   const actor = baseActor(runtime, group);
   actor.update = (progress) => {
@@ -606,6 +651,39 @@ function createMaterial(color: string, opacity: number): THREE.MeshBasicMaterial
   return material;
 }
 
+// Soft radial-falloff additive disc — an alpha-correct "glow"/bloom-substitute that
+// reads as over-exposure on the transparent overlay without a post-processing pass.
+function createGlowDisc(radius: number, color: string, opacity: number): THREE.Mesh {
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      color: { value: new THREE.Color(color) },
+      opacity: { value: opacity },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 color;
+      uniform float opacity;
+      varying vec2 vUv;
+      void main() {
+        float d = distance(vUv, vec2(0.5));
+        float a = smoothstep(0.5, 0.0, d);
+        gl_FragColor = vec4(color, a * a * opacity);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  material.userData.baseOpacity = opacity;
+  return new THREE.Mesh(new THREE.CircleGeometry(radius, 48), material);
+}
+
 function sampleCubic(points: Vec[], steps: number): Vec[] {
   const [a, b, c, d] = points;
   const sampled: Vec[] = [];
@@ -630,6 +708,10 @@ function sampleArc(radius: number, start: number, end: number, steps: number): V
 }
 
 function setOpacity(root: THREE.Object3D, alpha: number) {
+  // Per-effect intensity (set in applyIntensity) scales final brightness here so weak
+  // moves stay restrained and strong moves push brighter.
+  const brightness = (root.userData.brightness as number | undefined) ?? 1;
+  const factor = alpha * brightness;
   root.traverse((node) => {
     const object = node as THREE.Mesh | THREE.Points;
     const material = object.material;
@@ -639,9 +721,9 @@ function setOpacity(root: THREE.Object3D, alpha: number) {
 
     const materials = Array.isArray(material) ? material : [material];
     materials.forEach((entry) => {
-      entry.opacity = (entry.userData.baseOpacity ?? 1) * alpha;
+      entry.opacity = (entry.userData.baseOpacity ?? 1) * factor;
       if (entry instanceof THREE.ShaderMaterial && entry.uniforms.opacity) {
-        entry.uniforms.opacity.value = (entry.userData.baseOpacity ?? 1) * alpha;
+        entry.uniforms.opacity.value = (entry.userData.baseOpacity ?? 1) * factor;
       }
       entry.needsUpdate = true;
     });

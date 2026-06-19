@@ -1,4 +1,4 @@
-import { Activity, Camera, Clapperboard, Cpu, Sparkles } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Cpu, ImageDown, Sparkles } from 'lucide-react';
 import type { AppMode } from '../vision/types';
 import type { CameraStatus } from '../app/useCamera';
 
@@ -11,6 +11,8 @@ interface HeaderBarProps {
   actionPanelOpen: boolean;
   onToggleAnimationPanel: () => void;
   onToggleActionPanel: () => void;
+  onCapture: () => void;
+  captureEnabled: boolean;
 }
 
 export function HeaderBar({
@@ -22,6 +24,8 @@ export function HeaderBar({
   actionPanelOpen,
   onToggleAnimationPanel,
   onToggleActionPanel,
+  onCapture,
+  captureEnabled,
 }: HeaderBarProps) {
   return (
     <header className="header-bar">
@@ -48,6 +52,16 @@ export function HeaderBar({
 
       <div className="header-actions">
         <button
+          className="floating-toggle"
+          type="button"
+          onClick={onCapture}
+          disabled={!captureEnabled}
+          aria-label="截取当前画面"
+        >
+          <ImageDown size={17} />
+          截图
+        </button>
+        <button
           className={`floating-toggle ${animationPanelOpen ? 'active' : ''}`}
           type="button"
           onClick={onToggleAnimationPanel}
@@ -71,7 +85,7 @@ export function HeaderBar({
             aria-pressed={mode === 'manual'}
             onClick={() => onModeChange('manual')}
           >
-            手动测试
+            试玩
           </button>
         </div>
         <button
