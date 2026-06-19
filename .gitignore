@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+*.log
+*.tsbuildinfo
+
+# Local visual QA captures
+aura-seal-*.png
+
+# Claude Code working files — never commit these to the remote
+CLAUDE.md
+.claude/
+
+# Self-hosted MediaPipe runtime: WASM copied from node_modules + models fetched
+# by scripts/prepare-assets.mjs (runs on predev/prebuild). Kept out of git to
+# avoid ~47MB of binaries in history; re-generated on install/build.
+public/mediapipe/

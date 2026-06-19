@@ -1,0 +1,5 @@
+dist
+node_modules
+public/mediapipe
+public/fonts
+package-lock.json
