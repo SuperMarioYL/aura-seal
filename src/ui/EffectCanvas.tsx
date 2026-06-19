@@ -60,13 +60,23 @@ export function EffectCanvas({ trigger }: EffectCanvasProps) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(0, 1, 1, 0, -100, 100);
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: false,
-      powerPreference: 'high-performance',
-      premultipliedAlpha: false,
-    });
+
+    // WebGL may be unavailable (no GPU context, blocklisted driver, headless env).
+    // Degrade gracefully: disable the effects layer but keep camera/recognition/UI
+    // alive, instead of letting the failure bubble up and blank the whole app.
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        alpha: true,
+        antialias: false,
+        powerPreference: 'high-performance',
+        premultipliedAlpha: false,
+      });
+    } catch (err) {
+      console.warn('[AuraSeal] WebGL unavailable — effects disabled', err);
+      return;
+    }
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     sceneRef.current = scene;
