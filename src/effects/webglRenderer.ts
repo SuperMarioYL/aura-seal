@@ -102,7 +102,18 @@ function addGlow(actor: WebGLEffectActor, runtime: EffectRuntime, width: number,
 
 function applyIntensity(actor: WebGLEffectActor, runtime: EffectRuntime) {
   // Weak moves stay restrained, strong moves push toward over-exposure. Read by setOpacity.
-  actor.group.userData.brightness = 0.55 + runtime.preset.intensity * 0.5;
+  actor.group.userData.baseBrightness = 0.55 + runtime.preset.intensity * 0.5;
+  actor.group.userData.brightness = actor.group.userData.baseBrightness;
+}
+
+// v0.6 — charge → burst → dissipate. A sharp spike near the start gives each cast a
+// "snap" (anticipation into a burst peak, then decay) instead of a flat fade.
+const BURST_AT = 0.13;
+function burstCurve(progress: number): number {
+  if (progress < BURST_AT) {
+    return easeOut(progress / BURST_AT);
+  }
+  return Math.exp(-(progress - BURST_AT) * 6.5);
 }
 
 export function updateWebGLEffect(actor: WebGLEffectActor, now: number): boolean {
@@ -113,7 +124,13 @@ export function updateWebGLEffect(actor: WebGLEffectActor, now: number): boolean
     return false;
   }
 
+  // Drive the burst before the actor paints itself so setOpacity picks up the spike,
+  // then add a transform overshoot on top of whatever scale the actor set.
+  const burst = burstCurve(progress);
+  const base = (actor.group.userData.baseBrightness as number | undefined) ?? 1;
+  actor.group.userData.brightness = base * (1 + burst * 0.85);
   actor.update(progress, elapsed);
+  actor.group.scale.multiplyScalar(1 + burst * 0.14);
   return true;
 }
 

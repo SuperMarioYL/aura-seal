@@ -5,6 +5,7 @@ import { LeftPanel, RightPanel } from '../ui/SidePanels';
 import { StatusBar } from '../ui/StatusBar';
 import { EffectCanvas, type EffectCanvasHandle } from '../ui/EffectCanvas';
 import { GestureHintBar } from '../ui/GestureHintBar';
+import { HitFeedback } from '../ui/HitFeedback';
 import { ScreenshotPreview } from '../ui/ScreenshotPreview';
 import { CaptureBar } from '../ui/CaptureBar';
 import { WorksGallery } from '../ui/WorksGallery';
@@ -30,6 +31,7 @@ export function AuraSealApp() {
   const [worksOpen, setWorksOpen] = useState(false);
   const [worksReloadKey, setWorksReloadKey] = useState(0);
   const effectCanvasRef = useRef<EffectCanvasHandle>(null);
+  const videoStageRef = useRef<HTMLDivElement>(null);
   const [effectTrigger, setEffectTrigger] = useState<{
     preset: EffectPreset;
     anchor: { x: number; y: number };
@@ -143,7 +145,7 @@ export function AuraSealApp() {
       />
 
       <section className="camera-stage" aria-label="AuraSeal 全屏摄像头工作区">
-        <div className="video-stage">
+        <div className="video-stage" ref={videoStageRef}>
           <video
             ref={camera.videoRef}
             className="camera-feed"
@@ -154,6 +156,13 @@ export function AuraSealApp() {
           />
           <div className="stage-grid" aria-hidden="true" />
           <EffectCanvas ref={effectCanvasRef} trigger={effectTrigger} />
+          {effectTrigger ? (
+            <HitFeedback
+              nonce={effectTrigger.nonce}
+              color={effectTrigger.preset.palette.glow}
+              shakeTarget={videoStageRef}
+            />
+          ) : null}
           <div className="hud-top">
             <span>LOCAL CAMERA</span>
             <strong>{latestGesture?.label ?? '等待动作'}</strong>
