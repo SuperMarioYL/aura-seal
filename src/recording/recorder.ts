@@ -57,6 +57,7 @@ export class ClipRecorder {
   constructor(
     private video: HTMLVideoElement,
     private getEffectCanvas: () => HTMLCanvasElement | null,
+    private getAudioStream?: () => MediaStream | null,
   ) {
     this.ctx = this.composite.getContext('2d');
     this.mime = pickMimeType() ?? 'video/webm';
@@ -84,6 +85,9 @@ export class ClipRecorder {
     let recorder: MediaRecorder;
     try {
       const stream = this.composite.captureStream(FPS);
+      // Mux the sfx/BGM audio bus into the recording so exported clips have sound.
+      const audio = this.getAudioStream?.();
+      audio?.getAudioTracks().forEach((track) => stream.addTrack(track));
       try {
         recorder = new MediaRecorder(stream, {
           mimeType: this.mime,

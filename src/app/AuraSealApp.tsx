@@ -17,6 +17,7 @@ import { manualTriggerForGesture } from '../vision/gestureGuides';
 import { captureComposite, type CaptureResult } from '../recording/capture';
 import { useRecorder } from '../recording/useRecorder';
 import { saveClip, makeId } from '../recording/storage';
+import { audioEngine } from '../audio/audioEngine';
 
 export function AuraSealApp() {
   const camera = useCamera();
@@ -37,8 +38,17 @@ export function AuraSealApp() {
     nonce: number;
   } | null>(null);
 
+  const [muted, setMuted] = useState(audioEngine.muted);
+  const [bgmOn, setBgmOn] = useState(audioEngine.bgmOn);
+
   const getEffectCanvas = useCallback(() => effectCanvasRef.current?.getCanvas() ?? null, []);
-  const recorder = useRecorder(() => camera.videoRef.current, getEffectCanvas);
+  const getAudioStream = useCallback(() => audioEngine.audioStream, []);
+  const recorder = useRecorder(() => camera.videoRef.current, getEffectCanvas, getAudioStream);
+
+  const handleStart = useCallback(() => {
+    void audioEngine.resume();
+    camera.start();
+  }, [camera]);
 
   const handleCapture = useCallback(async () => {
     const video = camera.videoRef.current;
@@ -87,6 +97,7 @@ export function AuraSealApp() {
       secondaryAnchor?: { x: number; y: number },
     ) => {
       setEffectTrigger({ preset, anchor, direction, secondaryAnchor, nonce: performance.now() });
+      audioEngine.playSfx(preset.id);
     },
     [],
   );
@@ -122,6 +133,13 @@ export function AuraSealApp() {
         actionPanelOpen={actionPanelOpen}
         onToggleAnimationPanel={() => setAnimationPanelOpen((open) => !open)}
         onToggleActionPanel={() => setActionPanelOpen((open) => !open)}
+        muted={muted}
+        bgmOn={bgmOn}
+        onToggleMute={() => setMuted(audioEngine.toggleMute())}
+        onToggleBgm={() => {
+          void audioEngine.resume();
+          setBgmOn(audioEngine.toggleBgm());
+        }}
       />
 
       <section className="camera-stage" aria-label="AuraSeal 全屏摄像头工作区">
@@ -140,7 +158,7 @@ export function AuraSealApp() {
             <span>LOCAL CAMERA</span>
             <strong>{latestGesture?.label ?? '等待动作'}</strong>
           </div>
-          <PermissionGate status={camera.status} error={camera.error} onStart={camera.start} />
+          <PermissionGate status={camera.status} error={camera.error} onStart={handleStart} />
         </div>
 
         {animationPanelOpen ? (

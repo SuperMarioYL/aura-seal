@@ -289,6 +289,32 @@ button {
   opacity: 0.42;
 }
 
+.icon-toggle {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  background: var(--fill);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.icon-toggle.active {
+  color: var(--accent);
+  border-color: var(--line-strong);
+  background: var(--accent-soft);
+}
+
+.icon-toggle:hover {
+  color: var(--accent);
+}
+
 .mode-switch {
   padding: 3px;
   border: 1px solid var(--line);

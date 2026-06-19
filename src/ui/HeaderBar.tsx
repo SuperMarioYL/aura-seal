@@ -1,4 +1,13 @@
-import { Activity, Camera, Clapperboard, Cpu, Sparkles } from 'lucide-react';
+import {
+  Activity,
+  Camera,
+  Clapperboard,
+  Cpu,
+  Music,
+  Sparkles,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import type { AppMode } from '../vision/types';
 import type { CameraStatus } from '../app/useCamera';
 
@@ -11,6 +20,10 @@ interface HeaderBarProps {
   actionPanelOpen: boolean;
   onToggleAnimationPanel: () => void;
   onToggleActionPanel: () => void;
+  muted: boolean;
+  bgmOn: boolean;
+  onToggleMute: () => void;
+  onToggleBgm: () => void;
 }
 
 export function HeaderBar({
@@ -22,6 +35,10 @@ export function HeaderBar({
   actionPanelOpen,
   onToggleAnimationPanel,
   onToggleActionPanel,
+  muted,
+  bgmOn,
+  onToggleMute,
+  onToggleBgm,
 }: HeaderBarProps) {
   return (
     <header className="header-bar">
@@ -47,6 +64,26 @@ export function HeaderBar({
       </div>
 
       <div className="header-actions">
+        <button
+          className={`icon-toggle ${muted ? '' : 'active'}`}
+          type="button"
+          onClick={onToggleMute}
+          aria-label={muted ? '取消静音' : '静音'}
+          aria-pressed={!muted}
+          title={muted ? '已静音' : '音效开启'}
+        >
+          {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+        </button>
+        <button
+          className={`icon-toggle ${bgmOn ? 'active' : ''}`}
+          type="button"
+          onClick={onToggleBgm}
+          aria-label={bgmOn ? '关闭背景音乐' : '开启背景音乐'}
+          aria-pressed={bgmOn}
+          title="背景音乐"
+        >
+          <Music size={17} />
+        </button>
         <button
           className={`floating-toggle ${animationPanelOpen ? 'active' : ''}`}
           type="button"

@@ -9,6 +9,7 @@ import { ClipRecorder, recordingSupported, type RecordedClip } from './recorder'
 export function useRecorder(
   getVideo: () => HTMLVideoElement | null,
   getEffectCanvas: () => HTMLCanvasElement | null,
+  getAudioStream?: () => MediaStream | null,
 ) {
   const recorderRef = useRef<ClipRecorder | null>(null);
   const finishRef = useRef<(() => void) | null>(null);
@@ -24,7 +25,7 @@ export function useRecorder(
         return false;
       }
 
-      const recorder = new ClipRecorder(video, getEffectCanvas);
+      const recorder = new ClipRecorder(video, getEffectCanvas, getAudioStream);
       const finish = async () => {
         if (finishingRef.current) {
           return;
@@ -51,7 +52,7 @@ export function useRecorder(
       intervalRef.current = window.setInterval(() => setElapsedMs(recorder.elapsedMs), 200);
       return true;
     },
-    [getVideo, getEffectCanvas],
+    [getVideo, getEffectCanvas, getAudioStream],
   );
 
   const stop = useCallback(() => {
