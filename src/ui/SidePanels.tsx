@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { BookOpen, Hand, RadioTower, Zap } from 'lucide-react';
 import type { EffectPreset } from '../effects/types';
 import type { GestureEvent, VisionSnapshot } from '../vision/types';
@@ -16,7 +17,7 @@ interface SidePanelsProps {
   activeGesture: GestureEvent | null;
 }
 
-export function LeftPanel({ snapshot, recentGestures, activeGesture }: SidePanelsProps) {
+function LeftPanelImpl({ snapshot, recentGestures, activeGesture }: SidePanelsProps) {
   return (
     <aside className="panel left-panel" aria-label="动画效果状态">
       <div className="panel-title">
@@ -58,7 +59,7 @@ function ClapperTitle() {
   return <Zap size={16} />;
 }
 
-export function RightPanel({ onManualTrigger, manualEnabled, activeGesture }: SidePanelsProps) {
+function RightPanelImpl({ onManualTrigger, manualEnabled, activeGesture }: SidePanelsProps) {
   return (
     <aside className="panel right-panel" aria-label="动作教学与特效测试">
       <div className="panel-title">
@@ -126,3 +127,8 @@ function Metric({ label, value }: { label: string; value: string | number }) {
     </div>
   );
 }
+
+// Memoized so unrelated re-renders of the app shell (e.g. the recording timer ticking)
+// don't re-render the panels when their props are unchanged.
+export const LeftPanel = memo(LeftPanelImpl);
+export const RightPanel = memo(RightPanelImpl);

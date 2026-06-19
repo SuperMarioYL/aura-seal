@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { PermissionGate } from '../ui/PermissionGate';
 import { HeaderBar } from '../ui/HeaderBar';
 import { LeftPanel, RightPanel } from '../ui/SidePanels';
 import { StatusBar } from '../ui/StatusBar';
-import { EffectCanvas, type EffectCanvasHandle } from '../ui/EffectCanvas';
+import type { EffectCanvasHandle } from '../ui/EffectCanvas';
 import { GestureHintBar } from '../ui/GestureHintBar';
 import { HitFeedback } from '../ui/HitFeedback';
 import { ScreenshotPreview } from '../ui/ScreenshotPreview';
@@ -19,6 +19,12 @@ import { captureComposite, type CaptureResult } from '../recording/capture';
 import { useRecorder } from '../recording/useRecorder';
 import { saveClip, makeId } from '../recording/storage';
 import { audioEngine } from '../audio/audioEngine';
+
+// Lazily loaded so three.js stays out of the first-paint bundle; mounted only after
+// the camera is granted (v0.7).
+const EffectCanvas = lazy(() =>
+  import('../ui/EffectCanvas').then((m) => ({ default: m.EffectCanvas })),
+);
 
 export function AuraSealApp() {
   const camera = useCamera();
@@ -155,7 +161,15 @@ export function AuraSealApp() {
             aria-label="实时摄像头画面"
           />
           <div className="stage-grid" aria-hidden="true" />
-          <EffectCanvas ref={effectCanvasRef} trigger={effectTrigger} />
+          {camera.status === 'ready' ? (
+            <Suspense fallback={null}>
+              <EffectCanvas
+                ref={effectCanvasRef}
+                trigger={effectTrigger}
+                actorCap={vision.actorCap}
+              />
+            </Suspense>
+          ) : null}
           {effectTrigger ? (
             <HitFeedback
               nonce={effectTrigger.nonce}

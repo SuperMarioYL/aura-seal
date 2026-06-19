@@ -27,9 +27,29 @@ type PoseResult = { landmarks?: Landmark[][] };
 const WASM_BASE = '/mediapipe/wasm';
 const HAND_MODEL = '/mediapipe/models/hand_landmarker.task';
 const POSE_MODEL = '/mediapipe/models/pose_landmarker_lite.task';
-const DETECTION_INTERVAL_MS = 66;
 const LOAD_TIMEOUT_MS = 20000;
 const MAX_RETRIES = 2;
+
+// v0.7 — FPS-adaptive degradation. fps used to be computed and only displayed; now it
+// drives a quality level: when frames get expensive we lengthen the detection interval
+// and shrink the effect actor cap, and recover when there's headroom again.
+const MAX_QUALITY_LEVEL = 3;
+const INTERVAL_BY_LEVEL = [66, 100, 133, 200];
+const ACTOR_CAP_BY_LEVEL = [8, 6, 4, 3];
+const SNAPSHOT_INTERVAL_MS = 320;
+const QUALITY_CHECK_MS = 1200;
+
+function initialQualityLevel(): number {
+  const cores = navigator.hardwareConcurrency ?? 8;
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+  if (cores <= 2 || mem <= 2) {
+    return 2;
+  }
+  if (cores <= 4 || mem <= 4) {
+    return 1;
+  }
+  return 0;
+}
 
 function withTimeout<T>(factory: () => Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -66,6 +86,7 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
   const [status, setStatus] = useState<VisionStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
+  const [quality, setQuality] = useState(initialQualityLevel());
   const [snapshot, setSnapshot] = useState<VisionSnapshot>({
     frame: null,
     gesture: null,
@@ -73,6 +94,10 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
     detectedHands: 0,
     hasPose: false,
   });
+
+  const qualityRef = useRef(quality);
+  const lastQualityCheckRef = useRef(0);
+  const lastSnapshotMsRef = useRef(0);
 
   const landmarkerRef = useRef<Landmarkers | null>(null);
   const loadPromiseRef = useRef<Promise<Landmarkers> | null>(null);
@@ -187,7 +212,7 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
       const timestampMs = performance.now();
       const shouldDetect =
         video.currentTime !== lastVideoTimeRef.current &&
-        timestampMs - lastDetectMsRef.current >= DETECTION_INTERVAL_MS;
+        timestampMs - lastDetectMsRef.current >= INTERVAL_BY_LEVEL[qualityRef.current];
 
       if (shouldDetect) {
         lastVideoTimeRef.current = video.currentTime;
@@ -217,13 +242,21 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
           onGestureRef.current(gesture);
         }
 
-        setSnapshot({
-          frame,
-          gesture,
-          fps,
-          detectedHands: frame.hands.length,
-          hasPose: frame.pose.length > 0,
-        });
+        adjustQuality(timestampMs, fps);
+
+        // Throttle the React snapshot: panels only show fps/hand/pose counts, which
+        // don't need the full ~15Hz detection rate. Emit a cast frame immediately so a
+        // triggered gesture surfaces at once, otherwise update at ~3Hz.
+        if (gesture || timestampMs - lastSnapshotMsRef.current >= SNAPSHOT_INTERVAL_MS) {
+          lastSnapshotMsRef.current = timestampMs;
+          setSnapshot({
+            frame,
+            gesture,
+            fps,
+            detectedHands: frame.hands.length,
+            hasPose: frame.pose.length > 0,
+          });
+        }
       }
 
       rafRef.current = requestAnimationFrame(() => loop(landmarkers));
@@ -260,7 +293,31 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
     return state.fps;
   }
 
-  return { status, error, snapshot, degraded };
+  function adjustQuality(now: number, fps: number) {
+    if (fps <= 0 || now - lastQualityCheckRef.current < QUALITY_CHECK_MS) {
+      return;
+    }
+    lastQualityCheckRef.current = now;
+    let level = qualityRef.current;
+    if (fps < 22 && level < MAX_QUALITY_LEVEL) {
+      level += 1; // under budget — shed work
+    } else if (fps > 40 && level > 0) {
+      level -= 1; // headroom — recover quality
+    }
+    if (level !== qualityRef.current) {
+      qualityRef.current = level;
+      setQuality(level);
+    }
+  }
+
+  return {
+    status,
+    error,
+    snapshot,
+    degraded,
+    quality,
+    actorCap: ACTOR_CAP_BY_LEVEL[quality],
+  };
 }
 
 function toFrameFeatures(

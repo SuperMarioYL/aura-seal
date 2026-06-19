@@ -16,6 +16,8 @@ interface EffectCanvasProps {
     direction?: { x: number; y: number };
     nonce: number;
   } | null;
+  /** Max concurrent effect actors — lowered by the FPS-adaptive quality level (v0.7). */
+  actorCap?: number;
 }
 
 export interface EffectCanvasHandle {
@@ -24,7 +26,7 @@ export interface EffectCanvasHandle {
 }
 
 export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(function EffectCanvas(
-  { trigger },
+  { trigger, actorCap = 8 },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -52,15 +54,16 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
     const actor = createWebGLEffect(runtime, sizeRef.current.width, sizeRef.current.height);
     scene.add(actor.group);
 
-    effectsRef.current = [...effectsRef.current, runtime].slice(-8);
-    actorsRef.current = [...actorsRef.current, actor].slice(-8);
-    if (actorsRef.current.length > 7) {
+    const cap = Math.max(2, actorCap);
+    effectsRef.current = [...effectsRef.current, runtime].slice(-cap);
+    actorsRef.current = [...actorsRef.current, actor];
+    while (actorsRef.current.length > cap) {
       const [stale, ...rest] = actorsRef.current;
       scene.remove(stale.group);
       stale.dispose();
       actorsRef.current = rest;
     }
-  }, [trigger]);
+  }, [trigger, actorCap]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
