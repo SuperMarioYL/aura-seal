@@ -1,6 +1,11 @@
 import { useState } from 'react';
-import { Check, Copy, Download, RotateCcw, X } from 'lucide-react';
-import { copyBlobToClipboard, downloadBlob, type CaptureResult } from '../recording/capture';
+import { Check, Copy, Download, RotateCcw, Share2, X } from 'lucide-react';
+import {
+  copyBlobToClipboard,
+  downloadBlob,
+  shareBlob,
+  type CaptureResult,
+} from '../recording/capture';
 
 interface ScreenshotPreviewProps {
   result: CaptureResult | null;
@@ -48,6 +53,16 @@ export function ScreenshotPreview({ result, onClose, onRetake }: ScreenshotPrevi
           <button className="ghost-action" type="button" onClick={handleCopy}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
             {copied ? '已复制' : '复制'}
+          </button>
+          <button
+            className="ghost-action"
+            type="button"
+            onClick={() =>
+              shareBlob(result.blob, filename(), '我用 AuraSeal 灵印引擎生成的能量特效')
+            }
+          >
+            <Share2 size={16} />
+            分享
           </button>
           <button className="ghost-action" type="button" onClick={onRetake}>
             <RotateCcw size={16} />

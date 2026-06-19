@@ -6,6 +6,8 @@ import { StatusBar } from '../ui/StatusBar';
 import { EffectCanvas, type EffectCanvasHandle } from '../ui/EffectCanvas';
 import { GestureHintBar } from '../ui/GestureHintBar';
 import { ScreenshotPreview } from '../ui/ScreenshotPreview';
+import { CaptureBar } from '../ui/CaptureBar';
+import { WorksGallery } from '../ui/WorksGallery';
 import { presetForGesture } from '../effects/presets';
 import type { EffectPreset } from '../effects/types';
 import type { AppMode, GestureEvent } from '../vision/types';
@@ -13,6 +15,8 @@ import { useCamera } from './useCamera';
 import { useVisionLoop } from '../vision/useVisionLoop';
 import { manualTriggerForGesture } from '../vision/gestureGuides';
 import { captureComposite, type CaptureResult } from '../recording/capture';
+import { useRecorder } from '../recording/useRecorder';
+import { saveClip, makeId } from '../recording/storage';
 
 export function AuraSealApp() {
   const camera = useCamera();
@@ -22,6 +26,8 @@ export function AuraSealApp() {
   const [recentGestures, setRecentGestures] = useState<GestureEvent[]>([]);
   const [latestGesture, setLatestGesture] = useState<GestureEvent | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
+  const [worksOpen, setWorksOpen] = useState(false);
+  const [worksReloadKey, setWorksReloadKey] = useState(0);
   const effectCanvasRef = useRef<EffectCanvasHandle>(null);
   const [effectTrigger, setEffectTrigger] = useState<{
     preset: EffectPreset;
@@ -31,16 +37,47 @@ export function AuraSealApp() {
     nonce: number;
   } | null>(null);
 
+  const getEffectCanvas = useCallback(() => effectCanvasRef.current?.getCanvas() ?? null, []);
+  const recorder = useRecorder(() => camera.videoRef.current, getEffectCanvas);
+
   const handleCapture = useCallback(async () => {
     const video = camera.videoRef.current;
     if (!video) {
       return;
     }
-    const result = await captureComposite(video, effectCanvasRef.current?.getCanvas() ?? null);
+    const result = await captureComposite(video, getEffectCanvas());
     if (result) {
       setCaptureResult(result);
     }
-  }, [camera.videoRef]);
+  }, [camera.videoRef, getEffectCanvas]);
+
+  const handleToggleRecord = useCallback(() => {
+    if (recorder.isRecording) {
+      recorder.stop();
+      return;
+    }
+    recorder.start(async (clip) => {
+      if (!clip) {
+        return;
+      }
+      try {
+        await saveClip({
+          id: makeId(),
+          createdAt: Date.now(),
+          durationMs: clip.durationMs,
+          width: clip.width,
+          height: clip.height,
+          mimeType: clip.mimeType,
+          thumbnail: clip.thumbnail,
+          blob: clip.blob,
+        });
+        setWorksReloadKey((key) => key + 1);
+        setWorksOpen(true);
+      } catch (err) {
+        console.warn('[AuraSeal] failed to save clip', err);
+      }
+    });
+  }, [recorder]);
 
   const triggerEffect = useCallback(
     (
@@ -85,8 +122,6 @@ export function AuraSealApp() {
         actionPanelOpen={actionPanelOpen}
         onToggleAnimationPanel={() => setAnimationPanelOpen((open) => !open)}
         onToggleActionPanel={() => setActionPanelOpen((open) => !open)}
-        onCapture={handleCapture}
-        captureEnabled={camera.status === 'ready'}
       />
 
       <section className="camera-stage" aria-label="AuraSeal 全屏摄像头工作区">
@@ -142,6 +177,16 @@ export function AuraSealApp() {
           latestGesture={latestGesture}
           degraded={vision.degraded}
         />
+
+        <CaptureBar
+          visible={camera.status === 'ready'}
+          onCapture={handleCapture}
+          canRecord={recorder.supported}
+          isRecording={recorder.isRecording}
+          elapsedMs={recorder.elapsedMs}
+          onToggleRecord={handleToggleRecord}
+          onOpenWorks={() => setWorksOpen(true)}
+        />
       </section>
 
       <ScreenshotPreview
@@ -151,6 +196,12 @@ export function AuraSealApp() {
           setCaptureResult(null);
           void handleCapture();
         }}
+      />
+
+      <WorksGallery
+        open={worksOpen}
+        reloadKey={worksReloadKey}
+        onClose={() => setWorksOpen(false)}
       />
 
       <StatusBar
