@@ -11,7 +11,8 @@ import { hasOnboarded } from '../ui/onboardingState';
 import { ScreenshotPreview } from '../ui/ScreenshotPreview';
 import { CaptureBar } from '../ui/CaptureBar';
 import { WorksGallery } from '../ui/WorksGallery';
-import { presetForGesture } from '../effects/presets';
+import { ScoreHUD } from '../ui/ScoreHUD';
+import { presetForGesture, presetById } from '../effects/presets';
 import type { EffectPreset } from '../effects/types';
 import type { AppMode, GestureEvent } from '../vision/types';
 import { useCamera } from './useCamera';
@@ -21,6 +22,8 @@ import { captureComposite, type CaptureResult } from '../recording/capture';
 import { useRecorder } from '../recording/useRecorder';
 import { saveClip, makeId } from '../recording/storage';
 import { audioEngine } from '../audio/audioEngine';
+import { usePlay } from '../play/usePlay';
+import { applySkin, loadSkin, saveSkin, SKINS } from '../play/skins';
 
 // Lazily loaded so three.js stays out of the first-paint bundle; mounted only after
 // the camera is granted (v0.7).
@@ -51,6 +54,17 @@ export function AuraSealApp() {
   const [muted, setMuted] = useState(audioEngine.muted);
   const [bgmOn, setBgmOn] = useState(audioEngine.bgmOn);
   const [onboarded, setOnboarded] = useState(hasOnboarded);
+  const play = usePlay();
+  const skinRef = useRef(loadSkin());
+  const [skinName, setSkinName] = useState(skinRef.current.name);
+
+  const cycleSkin = useCallback(() => {
+    const index = SKINS.findIndex((s) => s.id === skinRef.current.id);
+    const next = SKINS[(index + 1) % SKINS.length];
+    skinRef.current = next;
+    saveSkin(next);
+    setSkinName(next.name);
+  }, []);
 
   const getEffectCanvas = useCallback(() => effectCanvasRef.current?.getCanvas() ?? null, []);
   const getAudioStream = useCallback(() => audioEngine.audioStream, []);
@@ -107,12 +121,22 @@ export function AuraSealApp() {
       direction = { x: 0, y: -1 },
       secondaryAnchor?: { x: number; y: number },
     ) => {
-      setEffectTrigger({ preset, anchor, direction, secondaryAnchor, nonce: performance.now() });
+      // Re-tint the palette by the active skin (v0.9), then cast.
+      const palette = applySkin(preset.palette, skinRef.current);
+      const skinned = palette === preset.palette ? preset : { ...preset, palette };
+      setEffectTrigger({
+        preset: skinned,
+        anchor,
+        direction,
+        secondaryAnchor,
+        nonce: performance.now(),
+      });
       audioEngine.playSfx(preset.id);
     },
     [],
   );
 
+  const playOnGesture = play.onGesture;
   const onGesture = useCallback(
     (gesture: GestureEvent) => {
       setLatestGesture(gesture);
@@ -123,8 +147,19 @@ export function AuraSealApp() {
         gesture.direction,
         gesture.secondaryAnchor,
       );
+
+      // Score the cast and, if it completes a combo sequence, fire a stronger ultimate.
+      const comboEffect = playOnGesture(gesture);
+      if (comboEffect) {
+        const base = presetById(comboEffect);
+        triggerEffect(
+          { ...base, intensity: 1, durationMs: Math.round(base.durationMs * 1.3) },
+          { x: 0.5, y: 0.46 },
+          { x: 0, y: -1 },
+        );
+      }
     },
-    [triggerEffect],
+    [triggerEffect, playOnGesture],
   );
 
   const vision = useVisionLoop({
@@ -153,6 +188,8 @@ export function AuraSealApp() {
           void audioEngine.resume();
           setBgmOn(audioEngine.toggleBgm());
         }}
+        skinName={skinName}
+        onCycleSkin={cycleSkin}
       />
 
       <section className="camera-stage" aria-label="AuraSeal 全屏摄像头工作区">
@@ -186,6 +223,9 @@ export function AuraSealApp() {
             <span>LOCAL CAMERA</span>
             <strong>{latestGesture?.label ?? '等待动作'}</strong>
           </div>
+          {camera.status === 'ready' && mode === 'auto' ? (
+            <ScoreHUD score={play.score} flash={play.flash} combo={play.combo} />
+          ) : null}
           <PermissionGate status={camera.status} error={camera.error} onStart={handleStart} />
         </div>
 

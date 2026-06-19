@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Cpu,
   Music,
+  Palette,
   Sparkles,
   Volume2,
   VolumeX,
@@ -24,6 +25,8 @@ interface HeaderBarProps {
   bgmOn: boolean;
   onToggleMute: () => void;
   onToggleBgm: () => void;
+  skinName: string;
+  onCycleSkin: () => void;
 }
 
 export function HeaderBar({
@@ -39,6 +42,8 @@ export function HeaderBar({
   bgmOn,
   onToggleMute,
   onToggleBgm,
+  skinName,
+  onCycleSkin,
 }: HeaderBarProps) {
   return (
     <header className="header-bar">
@@ -64,6 +69,16 @@ export function HeaderBar({
       </div>
 
       <div className="header-actions">
+        <button
+          className="floating-toggle"
+          type="button"
+          onClick={onCycleSkin}
+          aria-label={`切换皮肤,当前 ${skinName}`}
+          title="切换特效皮肤"
+        >
+          <Palette size={17} />
+          {skinName}
+        </button>
         <button
           className={`icon-toggle ${muted ? '' : 'active'}`}
           type="button"

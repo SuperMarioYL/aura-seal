@@ -426,6 +426,109 @@ button {
   font-size: var(--text-sm);
 }
 
+/* Score HUD (v0.9) */
+.score-hud {
+  position: absolute;
+  z-index: 12;
+  top: 92px;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.score-main {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.score-value {
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(102, 234, 255, 0.4);
+}
+
+.score-best {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.score-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.score-flash {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent);
+  animation: score-rise 700ms ease-out forwards;
+}
+
+.score-flash.rating-great {
+  color: #8af7ff;
+}
+
+.score-flash.rating-perfect {
+  color: #ffd479;
+}
+
+.combo-banner {
+  margin-top: 2px;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--hot, #ff596d);
+  text-shadow: 0 0 22px rgba(255, 89, 109, 0.5);
+  animation: combo-pop 900ms ease-out forwards;
+}
+
+@keyframes score-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes combo-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
 .floating-panel {
   position: absolute;
   z-index: 16;
