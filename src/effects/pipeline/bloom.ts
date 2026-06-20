@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createScreenFxPass } from './screenFx';
 
 // Overhaul P3 — real post-processing bloom for "影院模式" (cinema mode). Runs on the
 // transparent effects scene only (the camera feed stays a CSS layer behind), so bright
@@ -31,6 +32,7 @@ export function createBloomPipeline(
 
   const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), strength, 0.4, 0.82);
   composer.addPass(bloom);
+  composer.addPass(createScreenFxPass());
   composer.addPass(new OutputPass());
 
   return {

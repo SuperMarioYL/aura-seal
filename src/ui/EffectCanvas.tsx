@@ -17,6 +17,7 @@ import { coverMap } from '../effects/coordMap';
 import { presetById } from '../effects/presets';
 import { planAttached, type AttachedFactory } from '../effects/attachedManager';
 import { createBloomPipeline, type BloomPipeline } from '../effects/pipeline/bloom';
+import { createParticleBurst } from '../effects/pipeline/particles';
 
 interface EffectCanvasProps {
   trigger: {
@@ -103,6 +104,15 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
 
     const cap = Math.max(2, actorCap);
     actorsRef.current = [...actorsRef.current, actor];
+
+    // P5: big casts (spells / combos / max-intensity) get a GPU curl-noise particle burst.
+    if (runtime.preset.intensity >= 0.98) {
+      const burst = createParticleBurst(runtime.preset, width, height);
+      burst.group.position.copy(actor.group.position);
+      scene.add(burst.group);
+      actorsRef.current = [...actorsRef.current, burst];
+    }
+
     while (actorsRef.current.length > cap) {
       const [stale, ...rest] = actorsRef.current;
       scene.remove(stale.group);
