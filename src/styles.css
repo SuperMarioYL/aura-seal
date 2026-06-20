@@ -599,6 +599,34 @@ button {
   gap: var(--space-2);
 }
 
+.hue-row {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--fill);
+}
+
+.hue-row span {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.hue-row em {
+  color: var(--accent);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.hue-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
 .metric {
   min-width: 0;
   padding: var(--space-2);

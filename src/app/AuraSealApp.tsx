@@ -67,6 +67,25 @@ export function AuraSealApp() {
     setSkinName(next.name);
   }, []);
 
+  const [customHue, setCustomHue] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem('auraseal.customhue'));
+      return Number.isFinite(v) ? v : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const onCustomHue = useCallback((deg: number) => {
+    setCustomHue(deg);
+    try {
+      localStorage.setItem('auraseal.customhue', String(deg));
+    } catch {
+      // ignore
+    }
+    skinRef.current = { id: 'custom', name: '自定义', hue: deg };
+    setSkinName('自定义');
+  }, []);
+
   const [debug, setDebug] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -249,6 +268,8 @@ export function AuraSealApp() {
               onManualTrigger={triggerEffect}
               manualEnabled={mode === 'manual' && camera.status === 'ready'}
               activeGesture={latestGesture}
+              customHue={customHue}
+              onCustomHue={onCustomHue}
             />
           </div>
         ) : null}

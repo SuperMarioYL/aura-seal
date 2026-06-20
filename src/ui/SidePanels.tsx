@@ -15,9 +15,17 @@ interface SidePanelsProps {
   onManualTrigger: (preset: EffectPreset) => void;
   manualEnabled: boolean;
   activeGesture: GestureEvent | null;
+  customHue?: number;
+  onCustomHue?: (deg: number) => void;
 }
 
-function LeftPanelImpl({ snapshot, recentGestures, activeGesture }: SidePanelsProps) {
+function LeftPanelImpl({
+  snapshot,
+  recentGestures,
+  activeGesture,
+  customHue = 0,
+  onCustomHue,
+}: SidePanelsProps) {
   return (
     <aside className="panel left-panel" aria-label="动画效果状态">
       <div className="panel-title">
@@ -29,6 +37,21 @@ function LeftPanelImpl({ snapshot, recentGestures, activeGesture }: SidePanelsPr
         <Metric label="手部" value={snapshot.detectedHands} />
         <Metric label="姿态" value={snapshot.hasPose ? '已锁定' : '搜索中'} />
       </div>
+      {onCustomHue ? (
+        <label className="hue-row">
+          <span>
+            自定义色相 <em>{customHue}°</em>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={360}
+            value={customHue}
+            onChange={(e) => onCustomHue(Number(e.target.value))}
+            aria-label="自定义特效色相"
+          />
+        </label>
+      ) : null}
       <div className="active-readout">
         <span>当前命中</span>
         <strong>{activeGesture?.label ?? '等待动作'}</strong>
