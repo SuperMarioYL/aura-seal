@@ -13,6 +13,9 @@ import { CaptureBar } from '../ui/CaptureBar';
 import { WorksGallery } from '../ui/WorksGallery';
 import { ScoreHUD } from '../ui/ScoreHUD';
 import { StatsOverlay } from '../ui/StatsOverlay';
+import { SealChainHUD } from '../ui/SealChainHUD';
+import { SealSequencer, type SealProgress } from '../play/seals';
+import type { SealEvent } from '../vision/seals/sealStabilizer';
 import { presetForGesture, presetById } from '../effects/presets';
 import type { EffectPreset } from '../effects/types';
 import type { AppMode, GestureEvent } from '../vision/types';
@@ -44,6 +47,10 @@ export function AuraSealApp() {
   const [worksReloadKey, setWorksReloadKey] = useState(0);
   const effectCanvasRef = useRef<EffectCanvasHandle>(null);
   const videoStageRef = useRef<HTMLDivElement>(null);
+  const sequencerRef = useRef(new SealSequencer());
+  const sealClearTimer = useRef(0);
+  const [sealProgress, setSealProgress] = useState<SealProgress | null>(null);
+  const [sealBanner, setSealBanner] = useState<{ name: string; nonce: number } | null>(null);
   const [effectTrigger, setEffectTrigger] = useState<{
     preset: EffectPreset;
     anchor: { x: number; y: number };
@@ -211,10 +218,33 @@ export function AuraSealApp() {
     [triggerEffect, playOnGesture],
   );
 
+  const onSeal = useCallback(
+    (event: SealEvent) => {
+      const { progress, cast } = sequencerRef.current.push(event.seal, event.ts);
+      window.clearTimeout(sealClearTimer.current);
+      if (cast) {
+        const base = presetById(cast.spell.effect);
+        triggerEffect(
+          { ...base, intensity: 1, durationMs: Math.round(base.durationMs * 1.4) },
+          { x: 0.5, y: 0.46 },
+          { x: 0, y: -1 },
+        );
+        setSealBanner({ name: cast.spell.name, nonce: performance.now() });
+        setSealProgress(null);
+        sealClearTimer.current = window.setTimeout(() => setSealBanner(null), 1500);
+      } else {
+        setSealProgress(progress.chain.length ? progress : null);
+        sealClearTimer.current = window.setTimeout(() => setSealProgress(null), 1900);
+      }
+    },
+    [triggerEffect],
+  );
+
   const vision = useVisionLoop({
     videoRef: camera.videoRef,
     enabled: camera.status === 'ready' && mode === 'auto',
     onGesture,
+    onSeal,
   });
 
   const onboardingActive = camera.status === 'ready' && mode === 'auto' && !onboarded;
@@ -279,6 +309,7 @@ export function AuraSealApp() {
           {camera.status === 'ready' && mode === 'auto' ? (
             <ScoreHUD score={play.score} flash={play.flash} combo={play.combo} />
           ) : null}
+          <SealChainHUD progress={sealProgress} banner={sealBanner} />
           <PermissionGate status={camera.status} error={camera.error} onStart={handleStart} />
         </div>
 

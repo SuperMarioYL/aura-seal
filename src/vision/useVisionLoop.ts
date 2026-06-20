@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FilesetResolver, HandLandmarker, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { GestureStabilizer } from './gestures';
+import { SealStabilizer, type SealEvent } from './seals/sealStabilizer';
 import type { FrameFeatures, GestureEvent, Landmark, VisionSnapshot } from './types';
 
 type VisionStatus = 'idle' | 'loading' | 'running' | 'error';
@@ -9,6 +10,8 @@ interface UseVisionLoopOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   enabled: boolean;
   onGesture: (gesture: GestureEvent) => void;
+  /** Overhaul P4: parallel hand-seal channel (independent of the coarse gesture path). */
+  onSeal?: (seal: SealEvent) => void;
 }
 
 interface Landmarkers {
@@ -82,7 +85,7 @@ async function withRetry<T>(factory: () => Promise<T>, label: string): Promise<T
   throw lastError;
 }
 
-export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOptions) {
+export function useVisionLoop({ videoRef, enabled, onGesture, onSeal }: UseVisionLoopOptions) {
   const [status, setStatus] = useState<VisionStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
@@ -107,6 +110,8 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
   const lastDetectMsRef = useRef(0);
   const framesRef = useRef({ count: 0, since: performance.now(), fps: 0 });
   const onGestureRef = useRef(onGesture);
+  const onSealRef = useRef(onSeal);
+  const sealStabilizerRef = useRef(new SealStabilizer());
   const landmarkRef = useRef<FrameFeatures | null>(null);
 
   // Cached per-modality results so interleaved detection can still emit a full frame.
@@ -116,7 +121,8 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
 
   useEffect(() => {
     onGestureRef.current = onGesture;
-  }, [onGesture]);
+    onSealRef.current = onSeal;
+  }, [onGesture, onSeal]);
 
   const load = useCallback(async (): Promise<Landmarkers> => {
     if (landmarkerRef.current) {
@@ -186,6 +192,7 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
       if (!enabled) {
         setStatus('idle');
         stabilizerRef.current.reset();
+        sealStabilizerRef.current.reset();
         return;
       }
 
@@ -245,6 +252,14 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
 
         if (gesture) {
           onGestureRef.current(gesture);
+        }
+
+        // P4: parallel seal channel on the primary hand (independent of gestures).
+        if (onSealRef.current) {
+          const sealEvent = sealStabilizerRef.current.push(frame.hands[0], timestampMs);
+          if (sealEvent) {
+            onSealRef.current(sealEvent);
+          }
         }
 
         adjustQuality(timestampMs, fps);
