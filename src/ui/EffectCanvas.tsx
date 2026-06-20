@@ -16,6 +16,7 @@ import { resolveAnchor } from '../effects/anchors';
 import { coverMap } from '../effects/coordMap';
 import { presetById } from '../effects/presets';
 import { planAttached, type AttachedFactory } from '../effects/attachedManager';
+import { createBloomPipeline, type BloomPipeline } from '../effects/pipeline/bloom';
 
 interface EffectCanvasProps {
   trigger: {
@@ -29,6 +30,8 @@ interface EffectCanvasProps {
   actorCap?: number;
   /** Live landmark channel (overhaul P1) driving hand-following attached effects. */
   landmarkRef?: RefObject<FrameFeatures | null>;
+  /** Cinema mode (P3): real post-processing bloom. Off = proven direct render. */
+  cinema?: boolean;
 }
 
 export interface EffectCanvasHandle {
@@ -61,7 +64,7 @@ const ATTACHED_FACTORY: Record<
 };
 
 export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(function EffectCanvas(
-  { trigger, actorCap = 8, landmarkRef },
+  { trigger, actorCap = 8, landmarkRef, cinema = false },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -71,6 +74,8 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
   const attachedRef = useRef<Map<string, AttachedSlot>>(new Map());
   const sceneRef = useRef<THREE.Scene | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
+  const cinemaRef = useRef(cinema);
+  cinemaRef.current = cinema;
 
   // Transient one-shot effects: created at trigger, mirror/cover-corrected, played once.
   useEffect(() => {
@@ -141,6 +146,8 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
     let lastNow = 0;
     const auraPreset = presetById('seal');
     const attachedMap = attachedRef.current; // stable Map reference (never reassigned)
+    let bloom: BloomPipeline | null = null;
+    let bloomFailed = false;
 
     const applySize = (width: number, height: number) => {
       const w = Math.max(1, Math.floor(width));
@@ -156,6 +163,7 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
       camera.top = 0;
       camera.bottom = h;
       camera.updateProjectionMatrix();
+      bloom?.setSize(w, h);
     };
 
     const observer = new ResizeObserver((entries) => {
@@ -254,7 +262,39 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
           return alive;
         });
         updateAttached(now, dt);
-        renderer.render(scene, camera);
+
+        // Cinema mode (P3): post-processing bloom, with a hard fallback to direct render
+        // so a composer failure can never break the proven P1/P2 view.
+        if (cinemaRef.current && !bloomFailed) {
+          if (!bloom) {
+            try {
+              const { width, height } = sizeRef.current;
+              bloom = createBloomPipeline(renderer, scene, camera, width, height);
+            } catch (err) {
+              console.warn('[AuraSeal] bloom pipeline failed, using direct render', err);
+              bloomFailed = true;
+            }
+          }
+          if (bloom) {
+            try {
+              bloom.render();
+            } catch (err) {
+              console.warn('[AuraSeal] bloom render failed, using direct render', err);
+              bloom.dispose();
+              bloom = null;
+              bloomFailed = true;
+              renderer.render(scene, camera);
+            }
+          } else {
+            renderer.render(scene, camera);
+          }
+        } else {
+          if (bloom) {
+            bloom.dispose();
+            bloom = null;
+          }
+          renderer.render(scene, camera);
+        }
       }
       frame = requestAnimationFrame(draw);
     };
@@ -270,6 +310,7 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
       actorsRef.current = [];
       attachedMap.forEach((slot) => slot.actor.dispose());
       attachedMap.clear();
+      bloom?.dispose();
       // Do NOT forceContextLoss() — StrictMode remount reuses this canvas (see git log).
       renderer.dispose();
       scene.clear();

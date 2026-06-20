@@ -1,5 +1,6 @@
 import {
   Activity,
+  Aperture,
   Camera,
   Clapperboard,
   Cpu,
@@ -27,6 +28,8 @@ interface HeaderBarProps {
   onToggleBgm: () => void;
   skinName: string;
   onCycleSkin: () => void;
+  cinema: boolean;
+  onToggleCinema: () => void;
 }
 
 export function HeaderBar({
@@ -44,6 +47,8 @@ export function HeaderBar({
   onToggleBgm,
   skinName,
   onCycleSkin,
+  cinema,
+  onToggleCinema,
 }: HeaderBarProps) {
   return (
     <header className="header-bar">
@@ -78,6 +83,16 @@ export function HeaderBar({
         >
           <Palette size={17} />
           {skinName}
+        </button>
+        <button
+          className={`icon-toggle ${cinema ? 'active' : ''}`}
+          type="button"
+          onClick={onToggleCinema}
+          aria-label={cinema ? '关闭影院模式' : '开启影院模式(辉光)'}
+          aria-pressed={cinema}
+          title="影院模式 · 辉光泄光"
+        >
+          <Aperture size={17} />
         </button>
         <button
           className={`icon-toggle ${muted ? '' : 'active'}`}

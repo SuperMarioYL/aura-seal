@@ -55,6 +55,24 @@ export function AuraSealApp() {
   const [muted, setMuted] = useState(audioEngine.muted);
   const [bgmOn, setBgmOn] = useState(audioEngine.bgmOn);
   const [onboarded, setOnboarded] = useState(hasOnboarded);
+  const [cinema, setCinema] = useState(() => {
+    try {
+      return localStorage.getItem('auraseal.cinema') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleCinema = useCallback(() => {
+    setCinema((on) => {
+      const next = !on;
+      try {
+        localStorage.setItem('auraseal.cinema', next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
   const play = usePlay();
   const skinRef = useRef(loadSkin());
   const [skinName, setSkinName] = useState(skinRef.current.name);
@@ -221,6 +239,8 @@ export function AuraSealApp() {
         }}
         skinName={skinName}
         onCycleSkin={cycleSkin}
+        cinema={cinema}
+        onToggleCinema={toggleCinema}
       />
 
       <section className="camera-stage" aria-label="AuraSeal 全屏摄像头工作区">
@@ -241,6 +261,7 @@ export function AuraSealApp() {
                 trigger={effectTrigger}
                 actorCap={vision.actorCap}
                 landmarkRef={vision.landmarkRef}
+                cinema={cinema}
               />
             </Suspense>
           ) : null}
