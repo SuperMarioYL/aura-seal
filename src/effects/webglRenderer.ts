@@ -545,6 +545,134 @@ export function createAuraRing(preset: EffectPreset, width: number): WebGLEffect
   };
 }
 
+// P2 — double-palm energy orb: anchored to the midpoint between hands; closeness
+// (scalar) drives scale + brightness, so cupping the hands tightens and brightens it.
+export function createPalmOrb(preset: EffectPreset, width: number): WebGLEffectActor {
+  const group = new THREE.Group();
+  const radius = width * 0.05;
+  group.add(
+    new THREE.Mesh(new THREE.CircleGeometry(radius, 40), createMaterial(preset.palette.core, 0.85)),
+  );
+  group.add(createDisc(radius * 2.4, preset.palette.mid, 0.18));
+  group.add(createRing(radius * 1.6, preset.palette.spark, 0.6, Math.max(1.2, width * 0.0016)));
+  group.add(createGlowDisc(radius * 2.6, preset.palette.glow, 0.5));
+  group.add(createPointsCloud(40, radius * 3, preset.palette.spark, 0.5, Math.random() * 1000, 4));
+  group.userData.brightness = 1;
+
+  const runtime = createRuntimeEffect(preset, { x: 0.5, y: 0.5 });
+  return {
+    id: `orb-${runtime.id}`,
+    runtime,
+    group,
+    mode: 'attached',
+    update: () => undefined,
+    attachUpdate: (world, scalar, _dir, fade, now) => {
+      const close = clamp01(scalar);
+      group.position.set(world.x, world.y, 0);
+      group.scale.setScalar(0.55 + close * 0.7);
+      group.rotation.z = now * 0.0016;
+      group.userData.brightness = 0.8 + close * 0.9;
+      setOpacity(group, fade);
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
+// P2 — fingertip trail: a fixed-size ribbon following the index fingertip. Vertices live
+// in world space (group at origin) so the trail stays behind as the finger moves; a fixed
+// BufferGeometry is updated in place each frame (no per-frame geometry allocation).
+export function createFingerTrail(preset: EffectPreset, width: number, n = 24): WebGLEffectActor {
+  const group = new THREE.Group();
+  const headW = width * 0.018;
+  const history: Vec[] = [];
+  const positions = new Float32Array(n * 2 * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const indices: number[] = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    const b = i * 2;
+    indices.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+  }
+  geometry.setIndex(indices);
+  geometry.setDrawRange(0, 0);
+  const material = createMaterial(preset.palette.spark, 0.75);
+  group.add(new THREE.Mesh(geometry, material));
+  group.userData.brightness = 1;
+
+  const rebuild = () => {
+    const m = history.length;
+    for (let i = 0; i < m; i += 1) {
+      const p = history[i];
+      const prev = history[Math.max(0, i - 1)];
+      const next = history[Math.min(m - 1, i + 1)];
+      let tx = next.x - prev.x;
+      let ty = next.y - prev.y;
+      const len = Math.hypot(tx, ty) || 1;
+      tx /= len;
+      ty /= len;
+      const nx = -ty;
+      const ny = tx;
+      const t = m <= 1 ? 0 : i / (m - 1); // 0 = oldest (thin tail), 1 = newest (wide head)
+      const w = headW * t;
+      const a = i * 2 * 3;
+      positions[a] = p.x + nx * w;
+      positions[a + 1] = p.y + ny * w;
+      positions[a + 2] = 0;
+      positions[a + 3] = p.x - nx * w;
+      positions[a + 4] = p.y - ny * w;
+      positions[a + 5] = 0;
+    }
+    geometry.setDrawRange(0, Math.max(0, (m - 1) * 6));
+    geometry.attributes.position.needsUpdate = true;
+  };
+
+  const runtime = createRuntimeEffect(preset, { x: 0.5, y: 0.5 });
+  return {
+    id: `trail-${runtime.id}`,
+    runtime,
+    group,
+    mode: 'attached',
+    update: () => undefined,
+    attachUpdate: (world, _scalar, _dir, fade) => {
+      history.push({ x: world.x, y: world.y });
+      if (history.length > n) {
+        history.shift();
+      }
+      rebuild();
+      setOpacity(group, fade);
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
+// P2 — body aura: a particle/ring shell around the torso, radius driven by shoulder width.
+export function createBodyAura(preset: EffectPreset, width: number): WebGLEffectActor {
+  const group = new THREE.Group();
+  const base = width * 0.5;
+  group.add(
+    createPointsCloud(60, base * 0.5, preset.palette.spark, 0.5, Math.random() * 1000, 3.2),
+  );
+  group.add(createRing(base * 0.5, preset.palette.mid, 0.3, Math.max(1.5, width * 0.0016)));
+  group.add(createGlowDisc(base * 0.7, preset.palette.glow, 0.22));
+  group.userData.brightness = 1;
+
+  const runtime = createRuntimeEffect(preset, { x: 0.5, y: 0.5 });
+  return {
+    id: `body-${runtime.id}`,
+    runtime,
+    group,
+    mode: 'attached',
+    update: () => undefined,
+    attachUpdate: (world, scalar, _dir, fade, now) => {
+      group.position.set(world.x, world.y, 0);
+      group.scale.setScalar(clamp01((scalar - 0.1) / 0.3) * 0.8 + 0.6);
+      group.rotation.z = Math.sin(now * 0.001) * 0.05;
+      setOpacity(group, fade * 0.85);
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
 function createRing(radius: number, color: string, opacity: number, thickness: number): THREE.Mesh {
   const geometry = new THREE.TorusGeometry(radius, thickness, 8, 96);
   return new THREE.Mesh(geometry, createMaterial(color, opacity));

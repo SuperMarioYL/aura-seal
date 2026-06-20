@@ -28,6 +28,8 @@ export interface FrameFeatures {
   timestampMs: number;
   videoWidth: number;
   videoHeight: number;
+  /** FPS-adaptive quality level (0 best), stamped on the high-freq landmark channel. */
+  quality?: number;
 }
 
 export interface GestureEvent {

@@ -238,6 +238,7 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
         );
         // Overhaul P1: high-frequency landmark channel for hand-following effects.
         // Written every detect tick, BYPASSING the throttled React snapshot below.
+        frame.quality = qualityRef.current;
         landmarkRef.current = frame;
         const gesture = stabilizerRef.current.push(frame);
         const fps = updateFps(timestampMs);

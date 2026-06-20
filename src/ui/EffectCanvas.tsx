@@ -2,6 +2,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, type RefObject } fr
 import * as THREE from 'three';
 import {
   createAuraRing,
+  createBodyAura,
+  createFingerTrail,
+  createPalmOrb,
   createRuntimeEffect,
   createWebGLEffect,
   updateWebGLEffect,
@@ -12,6 +15,7 @@ import type { FrameFeatures } from '../vision/types';
 import { resolveAnchor } from '../effects/anchors';
 import { coverMap } from '../effects/coordMap';
 import { presetById } from '../effects/presets';
+import { planAttached, type AttachedFactory } from '../effects/attachedManager';
 
 interface EffectCanvasProps {
   trigger: {
@@ -37,7 +41,6 @@ const SMOOTH_TAU = 0.055; // critically-damped spring time constant (s)
 const FADE_IN_MS = 130;
 const FADE_OUT_MS = 320;
 const MAX_DT = 0.05;
-const MAX_HANDS = 2;
 
 interface AttachedSlot {
   actor: WebGLEffectActor;
@@ -47,6 +50,16 @@ interface AttachedSlot {
   dir: { x: number; y: number };
 }
 
+const ATTACHED_FACTORY: Record<
+  AttachedFactory,
+  (preset: EffectPreset, width: number) => WebGLEffectActor
+> = {
+  aura_ring: createAuraRing,
+  palm_orb: createPalmOrb,
+  finger_trail: createFingerTrail,
+  body_aura: createBodyAura,
+};
+
 export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(function EffectCanvas(
   { trigger, actorCap = 8, landmarkRef },
   ref,
@@ -55,7 +68,7 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
 
   useImperativeHandle(ref, () => ({ getCanvas: () => canvasRef.current }), []);
   const actorsRef = useRef<WebGLEffectActor[]>([]);
-  const attachedRef = useRef<Array<AttachedSlot | null>>([null, null]);
+  const attachedRef = useRef<Map<string, AttachedSlot>>(new Map());
   const sceneRef = useRef<THREE.Scene | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
 
@@ -127,6 +140,7 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
     let contextLost = false;
     let lastNow = 0;
     const auraPreset = presetById('seal');
+    const attachedMap = attachedRef.current; // stable Map reference (never reassigned)
 
     const applySize = (width: number, height: number) => {
       const w = Math.max(1, Math.floor(width));
@@ -164,54 +178,62 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
     canvas.addEventListener('webglcontextlost', onContextLost as EventListener, false);
     canvas.addEventListener('webglcontextrestored', onContextRestored as EventListener, false);
 
-    // Per-frame hand-following update: read the latest landmark, resolve each hand's
-    // palm anchor, smooth it (15Hz detection → 60Hz draw), and drive an aura ring that
-    // fades in/out as the hand enters/leaves frame.
+    // Per-frame hand-following update (P2): plan which attached effects should exist
+    // (stable ids via handedness), resolve each anchor from the latest landmark, smooth
+    // it (15Hz detection → 60Hz draw), and fade actors in/out as they appear/disappear.
     const updateAttached = (now: number, dt: number) => {
       const lm = landmarkRef?.current ?? null;
       const { width, height } = sizeRef.current;
-      const slots = attachedRef.current;
+      const map = attachedMap;
+      const specs = lm ? planAttached(lm, lm.quality ?? 0) : [];
+      const k = 1 - Math.exp(-dt / SMOOTH_TAU);
+      const live = new Set<string>();
 
-      for (let i = 0; i < MAX_HANDS; i += 1) {
-        const resolved = lm ? resolveAnchor('hand_center', lm, i) : null;
-        let slot = slots[i];
+      for (const spec of specs) {
+        const resolved = resolveAnchor(spec.anchorKind, lm!, Math.max(0, spec.handIndex));
+        if (!resolved.found) {
+          continue;
+        }
+        live.add(spec.id);
+        const target = coverMap(
+          resolved.pos.x,
+          resolved.pos.y,
+          lm!.videoWidth,
+          lm!.videoHeight,
+          width,
+          height,
+        );
+        let slot = map.get(spec.id);
+        if (!slot) {
+          const actor = ATTACHED_FACTORY[spec.factory](auraPreset, width);
+          scene.add(actor.group);
+          slot = {
+            actor,
+            smooth: { ...target },
+            fade: 0,
+            scalar: resolved.scalar,
+            dir: resolved.dir,
+          };
+          map.set(spec.id, slot);
+        }
+        slot.smooth.x += (target.x - slot.smooth.x) * k;
+        slot.smooth.y += (target.y - slot.smooth.y) * k;
+        slot.scalar = resolved.scalar;
+        slot.dir = resolved.dir;
+        slot.fade = Math.min(1, slot.fade + (dt * 1000) / FADE_IN_MS);
+        slot.actor.attachUpdate?.(slot.smooth, slot.scalar, slot.dir, slot.fade, now);
+      }
 
-        if (resolved && resolved.found && lm) {
-          const target = coverMap(
-            resolved.pos.x,
-            resolved.pos.y,
-            lm.videoWidth,
-            lm.videoHeight,
-            width,
-            height,
-          );
-          if (!slot) {
-            const actor = createAuraRing(auraPreset, width);
-            scene.add(actor.group);
-            slot = {
-              actor,
-              smooth: { ...target },
-              fade: 0,
-              scalar: resolved.scalar,
-              dir: resolved.dir,
-            };
-            slots[i] = slot;
-          }
-          const k = 1 - Math.exp(-dt / SMOOTH_TAU);
-          slot.smooth.x += (target.x - slot.smooth.x) * k;
-          slot.smooth.y += (target.y - slot.smooth.y) * k;
-          slot.scalar = resolved.scalar;
-          slot.dir = resolved.dir;
-          slot.fade = Math.min(1, slot.fade + (dt * 1000) / FADE_IN_MS);
-          slot.actor.attachUpdate?.(slot.smooth, slot.scalar, slot.dir, slot.fade, now);
-        } else if (slot) {
-          slot.fade = Math.max(0, slot.fade - (dt * 1000) / FADE_OUT_MS);
-          slot.actor.attachUpdate?.(slot.smooth, slot.scalar, slot.dir, slot.fade, now);
-          if (slot.fade <= 0) {
-            scene.remove(slot.actor.group);
-            slot.actor.dispose();
-            slots[i] = null;
-          }
+      for (const [id, slot] of map) {
+        if (live.has(id)) {
+          continue;
+        }
+        slot.fade = Math.max(0, slot.fade - (dt * 1000) / FADE_OUT_MS);
+        slot.actor.attachUpdate?.(slot.smooth, slot.scalar, slot.dir, slot.fade, now);
+        if (slot.fade <= 0) {
+          scene.remove(slot.actor.group);
+          slot.actor.dispose();
+          map.delete(id);
         }
       }
     };
@@ -246,8 +268,8 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
       canvas.removeEventListener('webglcontextrestored', onContextRestored as EventListener);
       actorsRef.current.forEach((actor) => actor.dispose());
       actorsRef.current = [];
-      attachedRef.current.forEach((slot) => slot?.actor.dispose());
-      attachedRef.current = [null, null];
+      attachedMap.forEach((slot) => slot.actor.dispose());
+      attachedMap.clear();
       // Do NOT forceContextLoss() — StrictMode remount reuses this canvas (see git log).
       renderer.dispose();
       scene.clear();
