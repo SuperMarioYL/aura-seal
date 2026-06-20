@@ -5,12 +5,12 @@ import {
   Cpu,
   Music,
   Palette,
-  Sparkles,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import type { AppMode } from '../vision/types';
 import type { CameraStatus } from '../app/useCamera';
+import { SealMark } from './SealMark';
 
 interface HeaderBarProps {
   mode: AppMode;
@@ -49,7 +49,7 @@ export function HeaderBar({
     <header className="header-bar">
       <div className="brand">
         <div className="brand-mark" aria-hidden="true">
-          <Sparkles size={18} />
+          <SealMark size={20} />
         </div>
         <div>
           <strong>AuraSeal</strong>

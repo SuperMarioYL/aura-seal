@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionGate } from '../ui/PermissionGate';
 import { HeaderBar } from '../ui/HeaderBar';
 import { LeftPanel, RightPanel } from '../ui/SidePanels';
@@ -12,6 +12,7 @@ import { ScreenshotPreview } from '../ui/ScreenshotPreview';
 import { CaptureBar } from '../ui/CaptureBar';
 import { WorksGallery } from '../ui/WorksGallery';
 import { ScoreHUD } from '../ui/ScoreHUD';
+import { StatsOverlay } from '../ui/StatsOverlay';
 import { presetForGesture, presetById } from '../effects/presets';
 import type { EffectPreset } from '../effects/types';
 import type { AppMode, GestureEvent } from '../vision/types';
@@ -64,6 +65,17 @@ export function AuraSealApp() {
     skinRef.current = next;
     saveSkin(next);
     setSkinName(next.name);
+  }, []);
+
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        setDebug((value) => !value);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const getEffectCanvas = useCallback(() => effectCanvasRef.current?.getCanvas() ?? null, []);
@@ -297,6 +309,14 @@ export function AuraSealApp() {
           snapshot={vision.snapshot}
           latestGesture={latestGesture}
           onClose={() => setOnboarded(true)}
+        />
+      ) : null}
+
+      {debug && camera.status === 'ready' ? (
+        <StatsOverlay
+          snapshot={vision.snapshot}
+          quality={vision.quality}
+          degraded={vision.degraded}
         />
       ) : null}
 

@@ -15,6 +15,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "size": "node scripts/check-bundle-size.mjs",
     "prepare": "husky || true"
   },
   "lint-staged": {

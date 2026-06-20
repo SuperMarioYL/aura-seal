@@ -1,0 +1,6 @@
+# AuraSeal 灵印引擎
+# NOTE: update the host below to the real production domain on deploy.
+User-agent: *
+Allow: /
+
+Sitemap: https://aura-seal.vercel.app/sitemap.xml
