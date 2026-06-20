@@ -458,7 +458,7 @@ function detectJump(frame: FrameFeatures, previous: FrameFeatures | null): Gestu
   return null;
 }
 
-function handOpenness(hand: Landmark[]): number {
+export function handOpenness(hand: Landmark[]): number {
   if (hand.length < 21) {
     return 0;
   }

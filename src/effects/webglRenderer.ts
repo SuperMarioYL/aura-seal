@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { EffectPreset, EffectRuntime } from './types';
+import { coverMap, mirrorDir } from './coordMap';
 
 type Vec = { x: number; y: number };
 
@@ -11,6 +12,10 @@ export interface WebGLEffectActor {
   group: THREE.Group;
   update: (progress: number, elapsedMs: number) => void;
   dispose: () => void;
+  /** transient = one-shot burst (default); attached = follows a live landmark each frame. */
+  mode?: 'transient' | 'attached';
+  /** Attached actors: called every draw frame with the smoothed world anchor. */
+  attachUpdate?: (world: Vec, scalar: number, dir: Vec, fade: number, now: number) => void;
 }
 
 export function createRuntimeEffect(
@@ -36,12 +41,16 @@ export function createWebGLEffect(
   runtime: EffectRuntime,
   width: number,
   height: number,
+  videoW = width,
+  videoH = height,
 ): WebGLEffectActor {
-  const anchor = toWorld(runtime.anchor, width, height);
+  // Mirror + cover-correct so transient effects line up with the displayed (mirrored)
+  // hand, same mapping the attached/hand-following path uses.
+  const anchor = coverMap(runtime.anchor.x, runtime.anchor.y, videoW, videoH, width, height);
   const secondary = runtime.secondaryAnchor
-    ? toWorld(runtime.secondaryAnchor, width, height)
+    ? coverMap(runtime.secondaryAnchor.x, runtime.secondaryAnchor.y, videoW, videoH, width, height)
     : undefined;
-  const direction = normalize(runtime.direction);
+  const direction = normalize(mirrorDir(runtime.direction));
   const group = new THREE.Group();
   group.position.set(anchor.x, anchor.y, 0);
 
@@ -499,7 +508,39 @@ function baseActor(runtime: EffectRuntime, group: THREE.Group): WebGLEffectActor
     id: runtime.id,
     runtime,
     group,
+    mode: 'transient',
     update: () => undefined,
+    dispose: () => disposeGroup(group),
+  };
+}
+
+// Overhaul P1 — attached hand-following aura ring. Unlike transient actors it has no
+// duration/progress; the draw loop calls attachUpdate() every frame with the smoothed
+// world anchor + hand openness + a fade value (0..1) for in/out.
+export function createAuraRing(preset: EffectPreset, width: number): WebGLEffectActor {
+  const group = new THREE.Group();
+  const radius = width * 0.07;
+  group.add(createRing(radius, preset.palette.mid, 0.7, Math.max(2, width * 0.0026)));
+  group.add(createRing(radius * 0.62, preset.palette.core, 0.5, Math.max(1.2, width * 0.0015)));
+  group.add(
+    createPointsCloud(28, radius * 1.5, preset.palette.spark, 0.6, Math.random() * 1000, 3),
+  );
+  group.add(createGlowDisc(radius * 1.7, preset.palette.glow, 0.42));
+  group.userData.brightness = 1;
+
+  const runtime = createRuntimeEffect(preset, { x: 0.5, y: 0.5 });
+  return {
+    id: `aura-${runtime.id}`,
+    runtime,
+    group,
+    mode: 'attached',
+    update: () => undefined,
+    attachUpdate: (world, scalar, _dir, fade, now) => {
+      group.position.set(world.x, world.y, 0);
+      group.rotation.z = now * 0.0014;
+      group.scale.setScalar(0.7 + clamp01(scalar) * 0.5);
+      setOpacity(group, fade);
+    },
     dispose: () => disposeGroup(group),
   };
 }
@@ -759,10 +800,6 @@ function disposeGroup(group: THREE.Group) {
     }
   });
   group.clear();
-}
-
-function toWorld(anchor: Vec, width: number, height: number): Vec {
-  return { x: anchor.x * width, y: anchor.y * height };
 }
 
 function midpoint(a: Vec, b: Vec): Vec {

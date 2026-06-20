@@ -107,6 +107,7 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
   const lastDetectMsRef = useRef(0);
   const framesRef = useRef({ count: 0, since: performance.now(), fps: 0 });
   const onGestureRef = useRef(onGesture);
+  const landmarkRef = useRef<FrameFeatures | null>(null);
 
   // Cached per-modality results so interleaved detection can still emit a full frame.
   const lastHandResultRef = useRef<HandResult>({ landmarks: [], handednesses: [] });
@@ -235,6 +236,9 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
           timestampMs,
           video,
         );
+        // Overhaul P1: high-frequency landmark channel for hand-following effects.
+        // Written every detect tick, BYPASSING the throttled React snapshot below.
+        landmarkRef.current = frame;
         const gesture = stabilizerRef.current.push(frame);
         const fps = updateFps(timestampMs);
 
@@ -317,6 +321,7 @@ export function useVisionLoop({ videoRef, enabled, onGesture }: UseVisionLoopOpt
     degraded,
     quality,
     actorCap: ACTOR_CAP_BY_LEVEL[quality],
+    landmarkRef,
   };
 }
 

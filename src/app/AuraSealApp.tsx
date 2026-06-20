@@ -240,6 +240,7 @@ export function AuraSealApp() {
                 ref={effectCanvasRef}
                 trigger={effectTrigger}
                 actorCap={vision.actorCap}
+                landmarkRef={vision.landmarkRef}
               />
             </Suspense>
           ) : null}
