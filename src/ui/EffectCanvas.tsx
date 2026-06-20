@@ -168,7 +168,11 @@ export const EffectCanvas = forwardRef<EffectCanvasHandle, EffectCanvasProps>(fu
       canvas.removeEventListener('webglcontextrestored', onContextRestored as EventListener);
       actorsRef.current.forEach((actor) => actor.dispose());
       actorsRef.current = [];
-      renderer.forceContextLoss();
+      // NOTE: do NOT forceContextLoss() here. React StrictMode (dev) mounts effects
+      // twice (mount → cleanup → mount) and the canvas is reused; force-losing the
+      // context permanently kills it, so the second mount draws an opaque/blank layer
+      // over the camera feed (white screen). dispose() frees three's resources while
+      // leaving the context usable for the remount.
       renderer.dispose();
       scene.clear();
       rendererRef.current = null;
